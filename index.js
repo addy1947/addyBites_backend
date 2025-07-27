@@ -33,7 +33,7 @@ mongoose.connect(MONGODB_URI)
   .catch(err => console.error("❌ MongoDB error:", err));
 
 app.use(cors({
-  origin: ['https://addy-bites.vercel.app/', 'http://localhost:5173', 'http://localhost:3000', 'http://localhost:5000'],
+  origin: ['https://addy-bites.vercel.app', 'http://localhost:5173', 'http://localhost:3000', 'http://localhost:5000'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
