@@ -10,6 +10,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const MONGODB_URI = process.env.MONGODB_URI;
 const PORT = process.env.PORT || 3000;
 
+
 // JWT Auth Middleware
 function authenticateJWT(req, res, next) {
   const token = req.cookies.jwt;
@@ -27,141 +28,75 @@ function authenticateJWT(req, res, next) {
 
 const app = express();
 
-// Enhanced CORS configuration
+mongoose.connect(MONGODB_URI)
+  .then(() => console.log("✅ MongoDB connected"))
+  .catch(err => console.error("❌ MongoDB error:", err));
+
 app.use(cors({
-  origin: [
-    'https://addy-bites.vercel.app', // Removed trailing slash
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'http://localhost:5000'
-  ],
+  origin: ['https://addy-bites.vercel.app/', 'http://localhost:5173', 'http://localhost:3000', 'http://localhost:5000'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['Set-Cookie']
 }));
 
 // Handle preflight requests
 app.options('*', cors());
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json());
 app.use(cookieParser());
 
-// Health check endpoint - should be first
+app.use('/api/auth', authRoutes);
+
+// Health check endpoint
 app.get('/health', (req, res) => {
-  res.status(200).json({
-    message: 'Server is running',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
-  });
+  res.status(200).json({ message: 'Server is running', timestamp: new Date().toISOString() });
 });
 
-// Test endpoint for debugging
-app.get('/test', (req, res) => {
-  res.status(200).json({ message: 'Test endpoint working' });
-});
-
-// MongoDB connection with better error handling
-mongoose.connect(MONGODB_URI)
-  .then(() => {
-    console.log("✅ MongoDB connected successfully");
-    console.log(`📊 Database: ${MONGODB_URI.split('/').pop()}`);
-  })
-  .catch(err => {
-    console.error("❌ MongoDB connection error:", err);
-    process.exit(1); // Exit if DB connection fails
-  });
-
-// Handle MongoDB connection errors
-mongoose.connection.on('error', (err) => {
-  console.error('MongoDB connection error:', err);
-});
-
-mongoose.connection.on('disconnected', () => {
-  console.log('MongoDB disconnected');
-});
-
-// Import models
 const Product = require('./data/productData/product');
 const Cartproducts = require('./data/cartData/cartProduct');
 const User = require('./data/loginDetail/schema');
 
-// Use auth routes
-app.use('/api/auth', authRoutes);
-
 
 app.get('/products/search', async (req, res) => {
-  try {
-    const query = req.query.q;
-    if (!query) {
-      return res.status(400).json({ message: 'Query parameter is required' });
-    }
-    const results = await Product.find({
-      name: { $regex: query, $options: "i" }
-    });
-    res.status(200).json(results);
-  } catch (error) {
-    console.error('Search error:', error);
-    res.status(500).json({ message: 'Error searching products', error: error.message });
-  }
+  const query = req.query.q;
+  const results = await Product.find({
+    name: { $regex: query, $options: "i" }
+  });
+  res.status(200).json(results);
 });
 
 app.get('/products/:_id/cart', authenticateJWT, async (req, res) => {
-  try {
-    const { _id } = req.params;
-    const user = await User.findById(_id).populate('cart.productId');
-
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    const cart = user.cart;
-    return res.status(200).json(cart);
-  } catch (error) {
-    console.error('Cart fetch error:', error);
-    res.status(500).json({ message: 'Error fetching cart', error: error.message });
+  const { _id } = req.params
+  const user = await User.findById(_id).populate('cart.productId')
+  console.log(user)
+  if (!user) {
+    return res.status(404).json({ message: 'user not found' })
   }
+  const cart = user.cart
+  return res.status(200).json(cart)
+
 });
 
 app.get('/products/all', async (req, res) => {
-  try {
-    const allProducts = await Product.find();
 
-    if (!allProducts || allProducts.length === 0) {
-      return res.status(404).json({ message: 'No products found' });
-    }
+  const allProducts = await Product.find()
 
-    res.status(200).json(
-      allProducts.map(product => ({
-        image: product.image,
-        name: product.name,
-        description: product.description,
-        price: product.price,
-        _id: product._id,
-        mealType: product.mealType
-      }))
-    );
-  } catch (error) {
-    console.error('Products fetch error:', error);
-    res.status(500).json({ message: 'Error fetching products', error: error.message });
-  }
+  res.status(200).json(
+    allProducts.map(product => ({
+      image: product.image,
+      name: product.name,
+      description: product.description,
+      price: product.price,
+      _id: product._id,
+      mealType: product.mealType
+    }))
+  );
 });
 
 app.get('/products/details/:_id', async (req, res) => {
-  try {
-    const { _id } = req.params;
-    const product = await Product.findById(_id);
-
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found' });
-    }
-
-    res.status(200).json(product);
-  } catch (error) {
-    console.error('Product details error:', error);
-    res.status(500).json({ message: 'Error fetching product details', error: error.message });
-  }
+  const { _id } = req.params;
+  const product = await Product.find({ _id: _id });
+  res.status(200).json(product);
 });
 
 app.get('/user/:_id', authenticateJWT, async (req, res) => {
@@ -285,54 +220,13 @@ app.post("/user/:_id/cart/order", authenticateJWT, async (req, res) => {
 });
 
 
-// 404 handler for undefined routes
-app.use('*', (req, res) => {
-  res.status(404).json({
-    message: 'Route not found',
-    path: req.originalUrl,
-    method: req.method
-  });
-});
-
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Server Error:', err);
-  res.status(500).json({
-    message: 'Internal server error',
-    error: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
-  });
+  console.error('Error:', err);
+  res.status(500).json({ message: 'Internal server error' });
 });
 
-// Graceful shutdown handling
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
-  mongoose.connection.close(() => {
-    console.log('MongoDB connection closed');
-    process.exit(0);
-  });
-});
-
-process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully');
-  mongoose.connection.close(() => {
-    console.log('MongoDB connection closed');
-    process.exit(0);
-  });
-});
-
-const server = app.listen(PORT, () => {
+app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🌐 CORS enabled for: https://addy-bites.vercel.app`);
-  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-  console.log(`🔗 Test endpoint: http://localhost:${PORT}/test`);
-});
-
-// Handle server errors
-server.on('error', (error) => {
-  if (error.code === 'EADDRINUSE') {
-    console.error(`❌ Port ${PORT} is already in use`);
-  } else {
-    console.error('❌ Server error:', error);
-  }
-  process.exit(1);
 });
