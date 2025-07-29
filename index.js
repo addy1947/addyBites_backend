@@ -235,6 +235,21 @@ app.post('/products/:_id/cart/update', authenticateJWT, async (req, res) => {
   res.status(200).json({ message: "Cart updated successfully" });
 })
 
+app.post('/products/:_id/cart/update/delete',authenticateJWT,async(req,res)=>{
+  const { _id } = req.params;
+  const { productId } = req.body;
+  const user = await User.findById(_id);
+  if (!user) {
+    return res.status(404).json({ message: "User not found" });
+  }
+  const cart = user.cart;
+  const existingProduct = cart.find(item => item.productId == productId);
+  if (existingProduct) {
+    cart.splice(cart.indexOf(existingProduct), 1);
+  }
+  await user.save();
+  res.status(200).json({ message: "Cart updated successfully" });
+})
 
 // Error handling middleware
 app.use((err, req, res, next) => {
